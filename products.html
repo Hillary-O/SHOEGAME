@@ -107,9 +107,28 @@
 
     <script src="js/products.js"></script>
     <script src="js/script.js"></script>
-    <script>
-        displayAllProducts();
-        updateCartCount();
-    </script>
+        <script>
+                displayAllProducts();
+                updateCartCount();
+        </script>
+
+        <!-- Simple M-Pesa pay button for testing STK Push -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const payBtn = document.createElement('button');
+                payBtn.textContent = 'Pay with M-Pesa';
+                payBtn.id = 'mpesa-pay';
+                payBtn.style.margin = '10px';
+                document.body.insertBefore(payBtn, document.body.firstChild);
+
+                payBtn.addEventListener('click', () => {
+                    const subtotal = cart.getTotal();
+                    if (subtotal <= 0) return alert('Your cart is empty');
+                    const tax = subtotal * 0.1;
+                    const total = Math.round(subtotal + tax);
+                    showMpesaPayment(total);
+                });
+            });
+        </script>
 </body>
 </html>

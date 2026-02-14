@@ -110,5 +110,42 @@
         displayRelatedProducts();
         updateCartCount();
     </script>
+
+        <!-- M-Pesa pay button on product details -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                const container = document.getElementById('productDetails');
+                if (!container) return;
+                const payBtn = document.createElement('button');
+                payBtn.textContent = 'Pay with M-Pesa';
+                payBtn.id = 'mpesa-pay-details';
+                payBtn.style.margin = '10px';
+                container.appendChild(payBtn);
+
+                payBtn.addEventListener('click', () => {
+                    // If on a product details page, use the product price; otherwise fall back to cart
+                    let amount = 0;
+                    try {
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const pid = urlParams.get('id');
+                        if (pid) {
+                            const product = getProductById(pid);
+                            amount = product ? product.price : 0;
+                        }
+                    } catch (e) {
+                        amount = 0;
+                    }
+
+                    if (amount <= 0) {
+                        const subtotal = cart.getTotal();
+                        if (subtotal <= 0) return alert('Cart is empty and no product selected');
+                        const tax = subtotal * 0.1;
+                        amount = Math.round(subtotal + tax);
+                    }
+
+                    showMpesaPayment(amount);
+                });
+            });
+        </script>
 </body>
 </html>

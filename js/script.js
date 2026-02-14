@@ -378,3 +378,91 @@ window.onclick = function(event) {
 
 // Initialize cart count on page load
 document.addEventListener('DOMContentLoaded', updateCartCount);
+
+// Show M-Pesa payment modal (asks phone and pay-to number).
+// NOTE: Do NOT collect or store the user's M-Pesa PIN — the user must enter PIN on their phone when the STK push arrives.
+function showMpesaPayment(amount) {
+  // remove existing modal
+  const prev = document.getElementById('mpesaModal');
+  if (prev) prev.remove();
+
+  const lastPhone = localStorage.getItem('shoegame_last_phone') || '';
+  const lastPayTo = localStorage.getItem('shoegame_last_payto') || '';
+
+  const modal = document.createElement('div');
+  modal.id = 'mpesaModal';
+  modal.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);z-index:99999;';
+
+  const box = document.createElement('div');
+  box.style.cssText = 'background:white;padding:20px;border-radius:8px;width:360px;max-width:95%;';
+  box.innerHTML = `
+    <h3 style="margin:0 0 8px 0">Pay with M-Pesa</h3>
+    <p style="margin:0 0 8px 0">Amount: KSH ${Number(amount).toLocaleString()}</p>
+    <label style="font-size:13px">Your phone (2547XXXXXXXX)</label>
+    <input id="mpesaPhone" type="text" value="${lastPhone}" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:4px" />
+    <label style="font-size:13px">Pay to (merchant shortcode or till, e.g. 174379)</label>
+    <input id="mpesaPayTo" type="text" value="${lastPayTo}" placeholder="Leave blank to use default" style="width:100%;padding:8px;margin:6px 0;border:1px solid #ccc;border-radius:4px" />
+    <div style="font-size:12px;color:#b00;margin-top:6px">Do not enter your M-Pesa PIN here. You will be prompted to enter your PIN on your phone when the payment request arrives.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px">
+      <button id="mpesaCancel" style="padding:8px 12px">Cancel</button>
+      <button id="mpesaConfirm" style="padding:8px 12px;background:#0b5;color:white;border:none;border-radius:4px">Confirm</button>
+    </div>
+    <div id="mpesaMsg" style="margin-top:8px;color:#b00"></div>
+  `;
+  modal.appendChild(box);
+  document.body.appendChild(modal);
+
+  const phoneInput = document.getElementById('mpesaPhone');
+  const payToInput = document.getElementById('mpesaPayTo');
+  const cancelBtn = document.getElementById('mpesaCancel');
+  const confirmBtn = document.getElementById('mpesaConfirm');
+  const msg = document.getElementById('mpesaMsg');
+
+  function close() { modal.remove(); }
+  cancelBtn.addEventListener('click', close);
+
+  confirmBtn.addEventListener('click', async () => {
+    msg.textContent = '';
+    let phone = phoneInput.value.trim();
+    let payTo = payToInput.value.trim();
+    if (!phone) return msg.textContent = 'Phone required';
+    if (phone.startsWith('+')) phone = phone.slice(1);
+    if (phone.startsWith('0')) phone = '254' + phone.slice(1);
+    if (phone.startsWith('7')) phone = '254' + phone;
+    if (!/^2547\d{8}$/.test(phone)) return msg.textContent = 'Phone must be in format 2547XXXXXXXX';
+
+    if (payTo && !/^\d{4,12}$/.test(payTo)) return msg.textContent = 'Pay-to must be digits (4-12 chars)';
+
+    localStorage.setItem('shoegame_last_phone', phone);
+    if (payTo) localStorage.setItem('shoegame_last_payto', payTo);
+
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Sending...';
+
+    try {
+      const body = { phone, amount };
+      if (payTo) body.payTo = payTo;
+      const resp = await fetch('http://localhost:3000/api/mpesa/stkpush', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await resp.json().catch(() => null);
+      if (!resp.ok) {
+        msg.textContent = data?.error || JSON.stringify(data) || 'STK Push failed';
+        console.error('STK response error', resp.status, data);
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Confirm';
+        return;
+      }
+      alert('STK Push initiated. Check your phone and enter your PIN on your phone.');
+      console.log('STK response', data);
+      close();
+    } catch (e) {
+      console.error(e);
+      msg.textContent = 'Network or server error';
+      confirmBtn.disabled = false;
+      confirmBtn.textContent = 'Confirm';
+    }
+  });
+}
